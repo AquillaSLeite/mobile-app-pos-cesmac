@@ -1,8 +1,9 @@
 package com.example.mobileappposcesmac
 
-import android.Manifest
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -17,9 +18,12 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 
 private const val LOCATION_REQUEST_CODE = 100
+private val locationPermissionsList = arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION)
+
+private const val PERMISSION_ACCEPTED_MESSAGE = "Permission Accepted"
+private const val PERMISSION_REJECTED_MESSAGE = "Permission Rejected"
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -37,11 +41,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             insets
         }
 
-        (supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment)?.getMapAsync(this)
-
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
-        checkLocationPermission()
+        initializeMapContext()
     }
 
     override fun onRequestPermissionsResult(
@@ -51,12 +53,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if (requestCode == LOCATION_REQUEST_CODE) {
-            if (grantResults.first() == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Permission Accepted", Toast.LENGTH_SHORT).show()
+        if (grantResults.first() != PERMISSION_GRANTED) {
+            shortToastText(PERMISSION_REJECTED_MESSAGE)
+            return
+        }
+
+        when (requestCode) {
+            LOCATION_REQUEST_CODE -> {
+                shortToastText(PERMISSION_ACCEPTED_MESSAGE)
                 retrieveUserLocation()
-            } else {
-                Toast.makeText(this, "Permission Rejected", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -64,46 +69,41 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
         map.uiSettings.isMyLocationButtonEnabled = true
+
+        checkLocationPermission()
     }
 
-    private fun checkLocationPermission() {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+    private fun initializeMapContext() =
+        (supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment)?.getMapAsync(this)
+
+    private fun checkLocationPermission() =
+        if (hasLocationPermissions()) {
             retrieveUserLocation()
         } else {
-            requestLocationPermission()
+            requestLocationPermissions()
         }
-    }
+
+    private fun hasLocationPermissions() =
+        verifyPermission(ACCESS_FINE_LOCATION) && verifyPermission(ACCESS_COARSE_LOCATION)
 
     @SuppressLint("MissingPermission")
     private fun retrieveUserLocation() {
-        val taskLocation = fusedLocationProviderClient.lastLocation
-
-        taskLocation.addOnSuccessListener {
-            if (it != null) {
-                val userLocation = LatLng(it.latitude, it.longitude)
-
-                map.moveCamera(CameraUpdateFactory.newLatLng(userLocation))
-                map.animateCamera(CameraUpdateFactory.zoomTo(10F))
-                map.addMarker(MarkerOptions().position(userLocation).title("Im Here!"))
+        fusedLocationProviderClient.lastLocation.addOnSuccessListener {
+            it?.run {
+                map.moveCamera(CameraUpdateFactory.newLatLng(LatLng(it.latitude, it.longitude)))
             }
         }
     }
 
-    private fun requestLocationPermission() =
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ),
-            LOCATION_REQUEST_CODE
-        )
+    private fun requestLocationPermissions() =
+        requestPermission(locationPermissionsList, LOCATION_REQUEST_CODE)
+
+    private fun verifyPermission(permissionToVerify: String) =
+        ActivityCompat.checkSelfPermission(this, permissionToVerify) == PERMISSION_GRANTED
+
+    private fun requestPermission(permissions: Array<String>, permissionCode: Int) =
+        ActivityCompat.requestPermissions(this, permissions, permissionCode)
+
+    private fun shortToastText(text: String) =
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 }
