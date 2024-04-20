@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if (grantResults.first() != PERMISSION_GRANTED) {
+        if (grantResults.any { it != PERMISSION_GRANTED }) {
             shortToastText(PERMISSION_REJECTED_MESSAGE)
             return
         }
